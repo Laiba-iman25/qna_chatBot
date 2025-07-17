@@ -3,7 +3,7 @@ from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
 from langchain.docstore.document import Document as LangDoc
 import os
 import tempfile #for pdfLoading
-from docx import Document #for docx loading
+from docx import Document as docxLoader#for docx loading
 combined_doc=[]
 
 def read_pdf(file):
@@ -15,13 +15,15 @@ def read_pdf(file):
   doc=loader.load()
   #print(doc) : enable for testing
   os.remove(temp_path)
+  for d in doc:
+    d.metadata["source"]=file.name
   return doc
 
 def read_docx_file(file):
-  doc= Document(file)
+  doc= docxLoader(file)
   text = "\n".join([p.text for p in doc.paragraphs])
   #print(text) : enable for testing
-  return [LangDoc(page_content=text)] 
+  return [LangDoc(page_content=text, metadata={"source":file.name})] 
   """ 
   => return [LangDoc(page_content=text)]
   this line convert the output extended into combined_docs from ['hello','hi','a','b','c','d'....] to this: ['hello','hi','abcd'...] 
@@ -37,7 +39,7 @@ def read_csv(file):
   #print(doc) : enable for testing
   return doc
 
-def doc_handler(uploaded_file):
+def document_handler(uploaded_file):
   path_type= os.path.splitext(uploaded_file.name)[1].lower()
   print(path_type)
   
@@ -52,3 +54,4 @@ def doc_handler(uploaded_file):
     doc= read_csv(uploaded_file)
 
 # TODO : Uncomment the return statement for further development of the model
+# TODO : CSV & Excel sheet analysis
