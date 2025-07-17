@@ -8,4 +8,3 @@ for file in uploaded_doc:
 #enable for testing: 
 print(chunker(combined_doc)) #testing chunking
 print(vector_embedding(chunker(combined_doc))) #testing vector embedding 
- 
