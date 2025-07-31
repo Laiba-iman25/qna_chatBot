@@ -1,18 +1,38 @@
-from data_loader import combined_doc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from sentence_transformers import SentenceTransformer
-from langchain_chroma import Chroma
+from langchain_chroma.vectorstores import Chroma
+import tempfile
 
-def chunker(combined_document):
-  splitter= RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-  chunked_docs= splitter.split_documents(combined_document)
-  return chunked_docs
+embedding_model = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    model_kwargs={"device": "cpu"}
+)
 
-def vector_embedding(chunked_docs):
-  model= HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2", model_kwargs={"device": "cpu"})
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1200, chunk_overlap=400
+)
 
-  vectordb= Chroma.from_documents(documents=chunked_docs, embedding=model)
-  #persist_directory=r'C:\Users\hyped\Desktop\RAG_Chatbot\db'
+temp_db= tempfile.mkdtemp()
+vector_store = Chroma(
+    embedding_function=embedding_model,
+    persist_directory=temp_db
+)
 
-  return vectordb
+def build_index(combined_doc):
+    chunks = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(splitter.split_documents, [doc]): doc for doc in combined_doc}
+        for f in as_completed(futures):
+            chunks.extend(f.result())
+
+    vector_store.add_documents(chunks)
+    print(f"Indexed {len(chunks)} chunks into Storage")
+
+def clear_vector_store(store):
+    all_ids = store.get()["ids"]
+    if all_ids:
+        store.delete(ids=all_ids)
+        print(f"Deleted {len(all_ids)} documents from the vector store.")
+    else:
+        print("No documents to delete.")
