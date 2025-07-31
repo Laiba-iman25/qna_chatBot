@@ -2,22 +2,22 @@ import pandas as pd #csv files
 from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
 from langchain.docstore.document import Document as LangDoc
 import os
-import tempfile #for pdfLoading
-from docx import Document as docxLoader#for docx loading
-combined_doc=[]
+import tempfile
+from docx import Document as docxLoader 
 
 def read_pdf(file):
   with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
       temp_file.write(file.read()) 
-      temp_path=temp_file.name  #this creates a temp path and stores the file there for being read by the pymupdf
+      temp_path=temp_file.name  
 
-  loader= PyMuPDFLoader(temp_path) #pymupdf doesnt accept an uploaded file, it reads files from the Path
-  doc=loader.load()
-  #print(doc) : enable for testing
-  os.remove(temp_path)
-  for d in doc:
-    d.metadata["source"]=file.name
-  return doc
+  try:
+          loader = PyMuPDFLoader(temp_path)
+          documents = loader.load()
+          cleaned_text = " ".join(doc.page_content.replace("-\n", "").replace("\n", " ") for doc in documents)
+
+          return [LangDoc(page_content=cleaned_text, metadata={"source": file.name})]
+  finally:
+    os.remove(temp_path)
 
 def read_docx_file(file):
   doc= docxLoader(file)
@@ -28,7 +28,19 @@ def read_docx_file(file):
   => return [LangDoc(page_content=text)]
   this line convert the output extended into combined_docs from ['hello','hi','a','b','c','d'....] to this: ['hello','hi','abcd'...] 
   """
-  
+
+def read_txt(file):
+  with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
+      temp_file.write(file.read()) 
+      temp_path = temp_file.name  
+
+  try:
+      with open(temp_path, 'r', encoding='utf-8') as f:
+          content = f.read()
+      return [LangDoc(page_content=content, metadata={"source": file.name})]
+  finally:
+      os.remove(temp_path)
+
 def read_excel(file):
   doc=pd.read_excel(file)
   #print(doc) : enable for testing
@@ -45,13 +57,15 @@ def document_handler(uploaded_file):
   
   #this modification to the loop below, adds the word and docx files into one document for chunking of data
   if path_type == ".pdf":
-    combined_doc.extend(read_pdf(uploaded_file))
+    return read_pdf(uploaded_file)
   elif path_type == ".docx":
-    combined_doc.extend(read_docx_file(uploaded_file))
-  if path_type == ".xlsx":
-    doc= read_excel(uploaded_file)
+    return read_docx_file(uploaded_file)
+  elif path_type == ".xlsx":
+    return read_excel(uploaded_file)
   elif path_type == ".csv":
-    doc= read_csv(uploaded_file)
+    return read_csv(uploaded_file)
+  elif path_type == ".txt":
+    return read_txt(uploaded_file)
 
 # TODO : Uncomment the return statement for further development of the model
 # TODO : CSV & Excel sheet analysis
